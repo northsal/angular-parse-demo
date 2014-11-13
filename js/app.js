@@ -1,18 +1,12 @@
 /*
-    app.js
-    code for our demo application
+ app.js
+ code for our demo application
  */
 
 "use strict";
 
-//this is the base URL for all task objects managed by your application
-//requesting this with a GET will get all tasks objects
-//sending a POST to this will insert a new task object
-//sending a PUT to this URL + '/' + task.objectId will update an existing task
-//sending a DELETE to this URL + '/' + task.objectId will delete an existing task
-var tasksUrl = 'https://api.parse.com/1/classes/tasks';
 
-angular.module('ToDoApp', [])
+angular.module('ToDoApp', ['ui.bootstrap'])
     .config(function($httpProvider) {
         //Parse required two extra headers sent with every HTTP request: X-Parse-Application-Id, X-Parse-REST-API-Key
         //the first needs to be set to your application's ID value
@@ -24,33 +18,96 @@ angular.module('ToDoApp', [])
         $httpProvider.defaults.headers.common['X-Parse-REST-API-Key'] = 'B2zrKcq25iLu4EtEw5zu5BO56Z5KWdv6waNO7nR7';
     })
     .controller('TasksController', function($scope, $http) {
+        //this is the base URL for all task objects managed by your application
+        //requesting this with a GET will get all tasks objects
+        //sending a POST to this will insert a new task object
+        //sending a PUT to this URL + '/' + task.objectId will update an existing task
+        //sending a DELETE to this URL + '/' + task.objectId will delete an existing task
+        var tasksUrl = 'https://api.parse.com/1/classes/tasks';
+
         $scope.refreshTasks = function() {
-            $http.get(tasksUrl + '?where={"done":false}')
-                .success(function(data) {
-                    $scope.tasks = data.results;
+            //get all tasks
+            $scope.loading = true;
+            $http.get(tasksUrl + '?where={"done": false}')
+                .success(function(responseData) {
+                    //when returning a list of data, Parse will always return an
+                    //object with one property called 'results', which will contain an
+                    //array containing all the data objects
+                    $scope.tasks = responseData.results;
+                })
+                .error(function(err) {
+                    console.log(err);
+                    //notify user in some way
+                })
+                .finally(function() {
+                    $scope.loading = false;
                 });
-        };
+        }; //$scope.refreshTasks()
+
+        //call refreshTasks() to get the initial set of tasks on page load
         $scope.refreshTasks();
 
-        $scope.newTask={done: false};
+        //initialize a new task object on the scope for the new task form
+        $scope.newTask = {done: false};
 
-        $scope.addTask = function() {
+        //function to add a new task to the list
+        $scope.addTask = function(task) {
             $scope.inserting = true;
-            $http.post(tasksUrl, $scope.newTask)
-                .success(function(responseData){
-                   $scope.newTask.objectId = responseData.objectId;
-                    $scope.tasks.push($scope.newTask);
+            $http.post(tasksUrl, task)
+                .success(function(responseData) {
+                    //Parse will return the new objectId in the response data
+                    //copy that to the task we just inserted
+                    task.objectId = responseData.objectId;
+
+                    //and add that task to our task list
+                    $scope.tasks.push(task);
+
+                    //reset newTask to clear the form
                     $scope.newTask = {done: false};
+                })
+                .error(function(err) {
+                    console.log(err);
+                    //report to user in some way
                 })
                 .finally(function() {
                     $scope.inserting = false;
                 });
         };
 
+        //function to update an existing task
         $scope.updateTask = function(task) {
-            $http.put(tasksUrl + '/' + task.objectId,task)
-                .success(function() {
-                  //give feedback
+            $scope.updating = true;
+            $http.put(tasksUrl + '/' + task.objectId, task)
+                .success(function(responseData) {
+                    //nothing we really need to do since local object is already up-to-date
+                })
+                .error(function(err) {
+                    console.log(err);
+                    //notify user in some way
+                })
+                .finally(function() {
+                    $scope.updating = false;
                 });
         };
+
+        $scope.incrementVotes= function(task, amount) {
+            var postData = {
+                votes: {
+                    __op: "Increment",
+                    amount: amount
+                }
+            };
+            $scope.updating = true;
+            $http.put(tasksUrl + '/' + task.objectId, postData)
+                .success(function(respData) {
+                    task.votes = respData.votes;
+                })
+                .error(function(err) {
+                    console.log(err);
+                })
+                .finally(function() {
+                    $scope.updating = false;
+                });
+        };
+
     });
